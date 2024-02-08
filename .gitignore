@@ -1,1 +1,52 @@
+# .gitignore
+
+# Environment variables
 .env
+.env.*
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Runtime files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+
+# IDE/Editor specific files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*.bak
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+venv/
+env/
+virtualenv/
+pipenv/
+
+# Node Modules
+node_modules/
+
+# Python Bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Docker Files
+docker-compose.override.yml

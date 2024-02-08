@@ -4,14 +4,17 @@ import requests
 import traceback
 import pandas as pd
 import os
-from dotenv import load_dotenv
-load_dotenv()
+
 
 """
     @title Python functions for Nobitex.com APIs
     @author Ardeshir Gholami https://github.com/4rdii
     @notice Take care Using your account with real money this repo is Under development!!
 """
+class CustomError(Exception):
+    """A custom exception for handling specific error conditions."""
+    pass
+
 def nobitexLogin(username, password, twoFactorAuthentication="0",remember="yes"):
     """
     Logins to Nobitex Account then returns the authentication token
@@ -31,11 +34,30 @@ def nobitexLogin(username, password, twoFactorAuthentication="0",remember="yes")
     }
     try:
         response = requests.post(url=loginURL, data=payLoad, headers=header)
-        print(response.json())
-    except Exception:
-        traceback.print_exc()
-    return response.json()["key"]
+        response_json = response.json()
+        if 'key' not in response_json:
+            if "error" in response_json or "non_field_errors" in response_json:
+                error = response_json
+            raise KeyError(f"Login Failed! {error} ")
+        return response_json["key"]
 
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        # Handle the KeyError specifically if needed
+        if isinstance(e, KeyError):
+            # Handle the KeyError, possibly by raising a custom exception
+            raise CustomError(f"Login Failed! {error} ")
+        # Re-raise the exception to be caught by the caller
+        raise
+
+    # try:
+    #     response = requests.post(url=loginURL, data=payLoad, headers=header)
+    #     print(response.json())
+    #     return response.json()["key"]
+
+    # except Exception:
+    #     traceback.print_exc()
+    #     return response.json()
 
 def nobitexLogout(key):
     """ This function burns the existing Authentication token"""
@@ -78,9 +100,6 @@ def nobitexGetProfileLimitations(key):
         traceback.print_exc()
         return(Exception)
     
-
-    
-
 def nobitexAddBankAccountWithCardNumebr(key,cardNumber,bankName):
     """ Adding Bank Card to Account using SHOMARE KART
         @dev: this function is Not tested use at your own discretion
@@ -117,3 +136,22 @@ def nobitexAddBankAccountWithAccountNumber(key,shabaNumber,accountNumber):
     except Exception:
         traceback.print_exc()
 
+def nobitexWalletLists(key,):
+    """ gets and returns a df of active wallets of the user"""
+    walletListURL = "https://api.nobitex.ir/v2/wallets?currencies"
+    header = {"Authorization": f"Token {key}"}
+    try:
+        response = requests.post(url=walletListURL, headers=header)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")
+        raise CustomError("Failed to retrieve wallet lists")
+
+    data = response.json()
+    if 'wallets' not in data:
+        raise CustomError("Expected 'wallets' key in the response JSON")
+
+    wallets = data['wallets']   
+    df = pd.DataFrame(wallets)
+    df = df.transpose()
+    return df

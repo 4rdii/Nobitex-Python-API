@@ -4,7 +4,6 @@ import requests
 import traceback
 import pandas as pd
 import os
-from dotenv import load_dotenv
 from datetime import datetime as dt
 
 """
@@ -87,7 +86,30 @@ def nobitexCandleSticks(startTimeStamp,endTimeStamp,symbol = "BTCIRT",resolution
     return df
 
 def nobitexMarketOptions():
-    ActiveCurrencies=[]
+    """
+    This function returns Market Options such as Amount Percisions and Price Percisions as a Dataframe and a list for active Currencies
+
+    """
+    activeCurrencies=[]
     amountPrecisions=[]
     pricePrecisions=[]
-    pass
+    marketOptionsURL = "https://api.nobitex.ir/v2/options"
+    try:
+        response = requests.get(url=marketOptionsURL)
+    except Exception:
+        traceback.print_exc()
+        return 0
+    data = response.json()["nobitex"]
+    keys_to_keep = ["activeCurrencies","amountPrecisions","pricePrecisions"]
+    keys_list = data.copy().keys()
+    for key in keys_list:
+        if key in keys_to_keep:
+            continue
+        else:
+            del data[key]
+    activeCurrencies = data["activeCurrencies"]
+    del data["activeCurrencies"]
+    percisionsDf = pd.DataFrame(data)
+
+    return percisionsDf , activeCurrencies
+

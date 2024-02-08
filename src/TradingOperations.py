@@ -4,9 +4,12 @@ import requests
 import traceback
 import pandas as pd
 import os
-from dotenv import load_dotenv
-load_dotenv()
 from src import  AccountOperations, MarketData
+import logging
+logging.basicConfig(filename='trading_operations.log', level=logging.INFO,
+                    format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+
 """
     @title Python functions for Nobitex.com APIs
     @author Ardeshir Gholami https://github.com/4rdii
@@ -21,8 +24,6 @@ class TradingOperations():
         self.twoFactorAuthentication = twoFactorAuthentication
         self.remember = "yes"
         self.authenticationToken = self.login()
-
-        pass
     
     def login(self):
         """
@@ -67,7 +68,8 @@ class TradingOperations():
             5- amount: 0.001
             Note: a. There is a maximum decimals for each pair plesae use this link: https://nobitex.ir/policies/markets/
                   b. Also there is minimum trading amount (500,000 IRT at the moment)  
-            returns the output in json format:
+            returns the Order ID,
+            API json format: (for further developments)
                   {'status': 'ok',
                     'order': {
                         'type': 'buy',
@@ -93,6 +95,14 @@ class TradingOperations():
                         'averagePrice': '0'
                         }}
         """
+        # Validate input parameters
+        if type not in ['buy', 'sell']:
+            raise ValueError("Invalid order type. Must be 'buy' or 'sell'.")
+        if not srcCurrency or not dstCurrency:
+            raise ValueError("Source and destination currencies must be specified.")
+        if (price) <=  0 or (amount) <=  0:
+            raise ValueError("Price and amount must be greater than zero.")
+        
         mode = "default"
         execution = "limit"
         addOrderURL = "https://api.nobitex.ir/market/orders/add"
@@ -108,9 +118,25 @@ class TradingOperations():
         }
         try:
             response = requests.post(url=addOrderURL, data=payLoad,headers=header)
-        except Exception:
-            traceback.print_exc()
-        #print(response.json())
+            response.raise_for_status()  # Raise an exception for HTTP errors
+
+        except requests.exceptions.HTTPError as http_err:
+            logging.error(f"HTTP error occurred: {http_err}")
+            raise
+        except requests.exceptions.RequestException as err:
+            logging.error(f"Error occurred: {err}")
+            raise
+        # Parse the response
+        try:
+            response_data = response.json()
+            if response_data['status'] != 'ok':
+                raise ValueError(f"Order placement failed: {response_data['message']}")
+        except KeyError:
+            logging.error("Unexpected response format from the API.")
+            raise
+
+        logging.info(f"Limit {type} order placed successfully for {amount} {srcCurrency}-{dstCurrency} at Price: {price}. Order ID: {response_data['order']['id']}")
+
         print(f"""
               =======================================================================================
               ORDER SUCCESSFUL:\n
@@ -119,10 +145,75 @@ class TradingOperations():
               Order Id = {response.json()["order"]["id"]}
               =======================================================================================
               """)
-        return response.json()["order"]["id"]
+        return response_data['order']['id']
     
-    def placeMarketExecutionOrder(self):
-        pass
+    def placeMarketExecutionOrder(self,type,srcCurrency,dstCurrency,amount):
+        """
+        PLACE Market price ORDER FUNCTION
+            using this function you can place a limit order with these input parameters:
+            1- type: "buy" or "sell"
+            2- srcCurruency: "btc"
+            3- dstCurrency: "rls" 
+            Note: CARE DO NOT USE "IRT" - at the moment api dose not support IRT and only works with rials
+            4- price: 23899999880 (in rials)
+            5- amount: 0.001
+            Note: a. There is a maximum decimals for each pair plesae use this link: https://nobitex.ir/policies/markets/
+                  b. Also there is minimum trading amount (500,000 IRT at the moment)  
+            returns the Order ID,
+        """
+        # Validate input parameters
+        if type not in ['buy', 'sell']:
+            raise ValueError("Invalid order type. Must be 'buy' or 'sell'.")
+        if not srcCurrency or not dstCurrency:
+            raise ValueError("Source and destination currencies must be specified.")
+        if (amount) <=  0:
+            raise ValueError("amount must be greater than zero.")
+        
+        mode = "default"
+        execution = "market"
+        addOrderURL = "https://api.nobitex.ir/market/orders/add"
+       
+        header = {"Authorization": f"Token {self.authenticationToken}"}
+        payLoad = {"type":type,
+                   "mode": mode,
+                   "execution": execution,
+                   "srcCurrency": srcCurrency.lower(),
+                   "dstCurrency": dstCurrency.lower(),
+                   "amount": f"{amount}",
+                   
+        }
+        try:
+            response = requests.post(url=addOrderURL, data=payLoad,headers=header)
+            print(response.json())
+            response.raise_for_status()  # Raise an exception for HTTP errors
+
+
+        except requests.exceptions.HTTPError as http_err:
+            logging.error(f"HTTP error occurred: {http_err}")
+            raise
+        except requests.exceptions.RequestException as err:
+            logging.error(f"Error occurred: {err}")
+            raise
+        # Parse the response
+        try:
+            response_data = response.json()
+            if response_data['status'] != 'ok':
+                raise ValueError(f"Order placement failed: {response_data['message']}")
+        except KeyError:
+            logging.error("Unexpected response format from the API.")
+            raise
+
+        logging.info(f"Limit {type} order placed successfully for {amount} {srcCurrency}-{dstCurrency} at Market Price. Order ID: {response_data['order']['id']}")
+
+        print(f"""
+              =======================================================================================
+              ORDER SUCCESSFUL:\n
+              Market Price {type} order placed for {amount} {srcCurrency}-{dstCurrency} at MarketPrice\n
+              order created at {response.json()["order"]["created_at"]}\n
+              Order Id = {response.json()["order"]["id"]}
+              =======================================================================================
+              """)
+        return response_data['order']['id']
 
     def placeStopMarketOrder(self):
         pass
@@ -158,9 +249,9 @@ class TradingOperations():
         except Exception:
             traceback.print_exc()
     
-    def addOrder(self,type,mode,execution,srcCurrency,dstCurrency,amount,price,stopPrice,stopLimitPrice,):
-        # remove later
-        pass
+    # def addOrder(self,type,mode,execution,srcCurrency,dstCurrency,amount,price,stopPrice,stopLimitPrice,):
+    #     # remove later
+    #     pass
 
     def getOrderStatus(self,orderId):
         """
@@ -178,16 +269,36 @@ class TradingOperations():
         return status
 
     def getOrdersList(self):
+        """
+        This function gives a list of all active orders
+        """
+        getOrdersList = "https://api.nobitex.ir/market/orders/list"
+        header = {"Authorization": f"Token {self.authenticationToken}"}
+        try:
+            response = requests.post(url=getOrdersList, headers=header)
+        except Exception:
+            traceback.print_exc()
+        df=pd.DataFrame(response.json()["orders"])
+        print(df)
         pass
 
     def getServerTime(self):
         # Get server time
+        # At the moment Nobitex API dosent have Server Tiem and Ping API endpoints
         pass
 
-    def getAccountInfo(self):
-        # Get account balance
-        pass
+    def getCurrencyBallance(self,currency):
+        """
+        This function returns the balance of requested currency input e.g. BTC
+        """
+        df = AccountOperations.nobitexWalletLists(self.authenticationToken)
+        balance = df.at[f'{currency.upper()}', 'balance']
+        return balance
 
     def getActiveCurrencies(self):
-        pass
+        percissionsDf , activeCurrencies = MarketData.nobitexMarketOptions()
+        return activeCurrencies
 
+    def getPercissions(self):
+        percissionsDf , activeCurrencies = MarketData.nobitexMarketOptions()
+        return percissionsDf
